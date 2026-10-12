@@ -1,0 +1,43 @@
+services:
+  controller:
+    image: jenkins/jenkins:lts-jdk21          # LTS line, JDK 21
+    container_name: jenkins-controller
+    restart: unless-stopped
+    user: root                                 # simplifies volume permissions for local learning
+    ports:
+      - "8080:8080"                            # web UI
+      - "50000:50000"                          # agent TCP port (used by SSH/other agents)
+    volumes:
+      - jenkins_home:/var/jenkins_home         # persist all Jenkins state
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+    networks:
+      - jenkins-net
+
+  agent:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    image: my-portfolio-jenkins-agent:latest    # name the built image
+    container_name: jenkins-agent
+    restart: unless-stopped
+    user: root                                 # allow tool installs + workspace writes in the container
+    environment:
+      - JENKINS_URL=http://controller:8080     # reach the controller over the compose network
+      - JENKINS_AGENT_NAME=docker-agent        # must match the node name you create in the UI
+      - JENKINS_SECRET=${JENKINS_AGENT_SECRET} # filled from .env AFTER creating the node
+      - JENKINS_AGENT_WORKDIR=/home/jenkins/agent
+    volumes:
+      - agent_workspace:/home/jenkins/agent    # keep workspace + installed tools across restarts
+    depends_on:
+      - controller
+    networks:
+      - jenkins-net
+
+volumes:
+  jenkins_home:
+  agent_workspace:
+
+networks:
+  jenkins-net:
+  
